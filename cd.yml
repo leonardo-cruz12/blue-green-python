@@ -1,0 +1,52 @@
+name: CD
+
+on:
+  push:
+    branches:
+      - "main"
+
+  workflow_dispatch:
+
+jobs:
+  cd:
+    name: Despliegue Blue Green
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: descargar el codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Iniciar version Blue
+        run: |
+          python app.py --version blue --puerto 8800 > blue.log 2>&1 &
+          echo $! > blue.pid
+          sleep 2
+
+      - name: Iniciar version Green
+        run: |
+          python app.py --version green --puerto 8801 > green.log 2>&1 &
+          echo $! > green.pid
+          sleep 2
+
+      - name: Probar version Green
+        run: |
+          curl --fail --silent http://localhost:8801
+
+      - name: cambiar trafico de blue a green
+        run: |
+          echo "Deteniendo version blue"
+          kill $(cat blue.pid)
+          echo "Trafico activo ahora en version green"
+
+      - name: revisar cual es la activa
+        run: |
+          curl --fail --silent http://localhost:8801
+
+      - name: finalizar los servers
+        run: |
+          kill $(cat green.pid) || true
